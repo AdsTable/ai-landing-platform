@@ -1,0 +1,32 @@
+<% layout('layouts/main', { title, siteName, user }) %>
+<h1>Platform Settings</h1>
+<p>Configure system-wide settings and preferences.</p>
+
+<div class="settings-sections">
+    <div class="settings-section">
+        <h2>General Settings</h2>
+        <form>
+            <label>Site Name:
+                <input type="text" value="<%= siteName %>">
+            </label>
+            <label>Default Language:
+                <select>
+                    <option value="en">English</option>
+                    <option value="es">Spanish</option>
+                </select>
+            </label>
+        </form>
+    </div>
+    
+    <div class="settings-section">
+        <h2>AI Settings</h2>
+        <form>
+            <label>
+                <input type="checkbox" checked> Enable AI Image Generation
+            </label>
+            <label>
+                <input type="checkbox" checked> Enable Auto-Translation
+            </label>
+        </form>
+    </div>
+</div>

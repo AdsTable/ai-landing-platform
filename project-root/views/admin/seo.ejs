@@ -1,0 +1,21 @@
+<% layout('layouts/main', { title, siteName, user }) %>
+<h1>SEO Analysis Dashboard</h1>
+<p>Analyze competitor SEO and optimize landing pages.</p>
+
+<div class="seo-tools">
+    <div class="tool-section">
+        <h2>Competitor Analysis</h2>
+        <form id="competitor-form">
+            <input type="url" placeholder="Enter competitor URL" required>
+            <button type="submit">Analyze</button>
+        </form>
+    </div>
+    
+    <div class="tool-section">
+        <h2>Keyword Research</h2>
+        <form id="keyword-form">
+            <input type="text" placeholder="Enter topic or industry" required>
+            <button type="submit">Generate Keywords</button>
+        </form>
+    </div>
+</div>

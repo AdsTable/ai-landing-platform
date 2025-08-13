@@ -1,0 +1,120 @@
+<% layout('layouts/main', { title, siteName, user, VAPID_PUBLIC_KEY }) %>
+
+<h1>Choose Your Plan</h1>
+
+<div class="plans-container">
+    <% plans.forEach(plan => { %>
+        <div class="plan-card <%= currentPlan && currentPlan._id.equals(plan._id) ? 'current' : '' %>">
+            <h3><%= plan.name %></h3>
+            <div class="plan-price">
+                $<%= plan.price %><span>/month</span>
+            </div>
+            
+            <ul class="plan-features">
+                <% plan.features.forEach(feature => { %>
+                    <li>✓ <%= feature %></li>
+                <% }) %>
+            </ul>
+            
+            <div class="plan-limits">
+                <p><strong>Monthly Limits:</strong></p>
+                <p>Pages: <%= plan.limits.monthlyGenerations === -1 ? 'Unlimited' : plan.limits.monthlyGenerations %></p>
+                <p>API Calls: <%= plan.limits.monthlyApiCalls === -1 ? 'Unlimited' : plan.limits.monthlyApiCalls %></p>
+                <p>Translations: <%= plan.limits.monthlyTranslations === -1 ? 'Unlimited' : plan.limits.monthlyTranslations %></p>
+            </div>
+            
+            <% if (currentPlan && currentPlan._id.equals(plan._id)) { %>
+                <button class="plan-btn current" disabled>Current Plan</button>
+            <% } else { %>
+                <a href="/billing/checkout/<%= plan._id %>" class="plan-btn">
+                    <%= plan.price > 0 ? 'Subscribe' : 'Select Free Plan' %>
+                </a>
+            <% } %>
+        </div>
+    <% }) %>
+</div>
+
+<% if (currentPlan && currentPlan.price > 0) { %>
+    <div class="subscription-management">
+        <h2>Manage Subscription</h2>
+        <button onclick="cancelSubscription()" class="btn-danger">Cancel Subscription</button>
+    </div>
+<% } %>
+
+<script>
+async function cancelSubscription() {
+    if (!confirm('Are you sure you want to cancel your subscription?')) return;
+    
+    try {
+        const response = await fetch('/billing/cancel', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        
+        const result = await response.json();
+        if (result.success) {
+            alert('Subscription canceled successfully');
+            location.reload();
+        } else {
+            alert('Cancellation failed: ' + result.error);
+        }
+    } catch (error) {
+        alert('Cancellation failed');
+    }
+}
+</script>
+
+<style>
+.plans-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 2rem;
+    margin: 2rem 0;
+}
+
+.plan-card {
+    border: 2px solid #ddd;
+    border-radius: 8px;
+    padding: 2rem;
+    text-align: center;
+}
+
+.plan-card.current {
+    border-color: #007bff;
+    background: #f8f9fa;
+}
+
+.plan-price {
+    font-size: 3rem;
+    color: #007bff;
+    margin: 1rem 0;
+}
+
+.plan-price span {
+    font-size: 1rem;
+}
+
+.plan-features {
+    list-style: none;
+    padding: 0;
+    margin: 1rem 0;
+}
+
+.plan-features li {
+    padding: 0.5rem 0;
+}
+
+.plan-btn {
+    display: inline-block;
+    padding: 1rem 2rem;
+    background: #007bff;
+    color: white;
+    text-decoration: none;
+    border-radius: 4px;
+    margin-top: 1rem;
+}
+
+.plan-btn.current {
+    background: #6c757d;
+}
+</style>

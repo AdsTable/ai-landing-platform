@@ -1,0 +1,9 @@
+<% layout('layouts/main', { title: 'Theme Editor', tenant }) %>
+<h1>Theme Editor</h1>
+<form method="POST">
+    <label>Primary Color:</label>
+    <input type="color" name="primaryColor" value="<%= tenant.primaryColor %>">
+    <label>Logo URL:</label>
+    <input type="text" name="logoUrl" value="<%= tenant.logoUrl %>">
+    <button type="submit">Save</button>
+</form>

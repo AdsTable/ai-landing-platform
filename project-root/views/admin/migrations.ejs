@@ -1,0 +1,133 @@
+<% layout('layouts/main', { title, siteName, user, VAPID_PUBLIC_KEY }) %>
+
+<h1>Database Migrations</h1>
+
+<div class="migrations-container">
+    <div class="migration-stats">
+        <div class="stat">
+            <span class="label">Total:</span>
+            <span class="value"><%= migrationStatus.total %></span>
+        </div>
+        <div class="stat">
+            <span class="label">Executed:</span>
+            <span class="value"><%= migrationStatus.executed %></span>
+        </div>
+        <div class="stat">
+            <span class="label">Pending:</span>
+            <span class="value"><%= migrationStatus.pending %></span>
+        </div>
+    </div>
+
+    <div class="migration-actions">
+        <button onclick="createMigration()" class="btn btn-primary">Create Migration</button>
+        <% if (migrationStatus.pending > 0) { %>
+            <button onclick="runMigrations()" class="btn btn-success">Run Pending</button>
+        <% } %>
+        <button onclick="rollbackMigrations()" class="btn btn-warning">Rollback</button>
+    </div>
+
+    <div class="migrations-list">
+        <h3>Executed Migrations</h3>
+        <% if (migrationStatus.migrations.executed.length > 0) { %>
+            <table class="migrations-table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Batch</th>
+                        <th>Executed At</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <% migrationStatus.migrations.executed.forEach(migration => { %>
+                        <tr>
+                            <td><%= migration.name %></td>
+                            <td><%= migration.batch %></td>
+                            <td><%= migration.executedAt.toLocaleString() %></td>
+                        </tr>
+                    <% }) %>
+                </tbody>
+            </table>
+        <% } else { %>
+            <p>No migrations executed yet.</p>
+        <% } %>
+
+        <h3>Pending Migrations</h3>
+        <% if (migrationStatus.migrations.pending.length > 0) { %>
+            <ul class="pending-list">
+                <% migrationStatus.migrations.pending.forEach(migration => { %>
+                    <li><%= migration.name %></li>
+                <% }) %>
+            </ul>
+        <% } else { %>
+            <p>No pending migrations.</p>
+        <% } %>
+    </div>
+</div>
+
+<script>
+async function createMigration() {
+    const name = prompt('Migration name:');
+    if (!name) return;
+    
+    try {
+        const response = await fetch('/admin/database/migrations/create', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name })
+        });
+        
+        const result = await response.json();
+        if (result.success) {
+            alert(`Migration created: ${result.migration.filename}`);
+            location.reload();
+        } else {
+            alert('Failed to create migration');
+        }
+    } catch (error) {
+        alert('Error creating migration');
+    }
+}
+
+async function runMigrations() {
+    if (!confirm('Run all pending migrations?')) return;
+    
+    try {
+        const response = await fetch('/admin/database/migrations/run', { method: 'POST' });
+        const result = await response.json();
+        
+        if (result.success) {
+            alert(result.message);
+            location.reload();
+        } else {
+            alert('Migration failed');
+        }
+    } catch (error) {
+        alert('Error running migrations');
+    }
+}
+
+async function rollbackMigrations() {
+    const steps = prompt('Number of batches to rollback:', '1');
+    if (!steps) return;
+    
+    if (!confirm(`Rollback last ${steps} migration batch(es)? This cannot be undone.`)) return;
+    
+    try {
+        const response = await fetch('/admin/database/migrations/rollback', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ steps: parseInt(steps) })
+        });
+        
+        const result = await response.json();
+        if (result.success) {
+            alert(result.message);
+            location.reload();
+        } else {
+            alert('Rollback failed');
+        }
+    } catch (error) {
+        alert('Error during rollback');
+    }
+}
+</script>

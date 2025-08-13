@@ -1,0 +1,133 @@
+<% layout('layouts/main', { title, siteName, user, VAPID_PUBLIC_KEY }) %>
+
+<h1>Checkout - <%= plan.name %></h1>
+
+<div class="checkout-container">
+    <div class="plan-summary">
+        <h2><%= plan.name %> Plan</h2>
+        <p class="price">$<%= plan.price %>/month</p>
+        <ul>
+            <% plan.features.forEach(feature => { %>
+                <li>✓ <%= feature %></li>
+            <% }) %>
+        </ul>
+    </div>
+
+    <div class="payment-form">
+        <form id="payment-form">
+            <div id="card-element">
+                <!-- Stripe Elements will create form elements here -->
+            </div>
+            <button id="submit-payment" class="btn-primary">
+                Subscribe for $<%= plan.price %>/month
+            </button>
+        </form>
+    </div>
+</div>
+
+<script src="https://js.stripe.com/v3/"></script>
+<script>
+const stripe = Stripe('<%= stripePublishableKey %>');
+const elements = stripe.elements();
+
+// Create card element
+const cardElement = elements.create('card');
+cardElement.mount('#card-element');
+
+const form = document.getElementById('payment-form');
+const submitButton = document.getElementById('submit-payment');
+
+form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    submitButton.disabled = true;
+    submitButton.textContent = 'Processing...';
+
+    try {
+        // Create payment method
+        const {paymentMethod, error} = await stripe.createPaymentMethod({
+            type: 'card',
+            card: cardElement,
+            billing_details: {
+                email: '<%= user.email %>',
+                name: '<%= user.username %>'
+            }
+        });
+
+        if (error) {
+            throw error;
+        }
+
+        // Subscribe with payment method
+        const response = await fetch('/billing/subscribe', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                planId: '<%= plan._id %>',
+                paymentMethodId: paymentMethod.id
+            })
+        });
+
+        const result = await response.json();
+        
+        if (result.success) {
+            alert('Subscription created successfully!');
+            window.location.href = '/billing/plans';
+        } else {
+            throw new Error(result.error);
+        }
+
+    } catch (error) {
+        alert('Payment failed: ' + error.message);
+        submitButton.disabled = false;
+        submitButton.textContent = 'Subscribe for $<%= plan.price %>/month';
+    }
+});
+</script>
+</script>
+
+<style>
+.checkout-container {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.plan-summary {
+    padding: 2rem;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+}
+
+.price {
+    font-size: 2rem;
+    color: #007bff;
+    margin: 1rem 0;
+}
+
+.payment-form {
+    padding: 2rem;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+}
+
+#card-element {
+    padding: 1rem;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    margin-bottom: 1rem;
+}
+
+.btn-primary {
+    width: 100%;
+    padding: 1rem;
+    background: #007bff;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    font-size: 1.1rem;
+}
+</style>

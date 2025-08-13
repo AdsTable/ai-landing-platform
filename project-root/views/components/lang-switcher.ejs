@@ -1,0 +1,9 @@
+<nav class="lang-switcher">
+    <% languages.forEach(l => { %>
+        <% if (l.code !== lang) { %>
+            <a href="/market/<%= industry %>/<%= l.code %>/<%= location %>/<%= type %>"><%= l.name %></a>
+        <% } else { %>
+            <span class="active"><%= l.name %></span>
+        <% } %>
+    <% }) %>
+</nav>

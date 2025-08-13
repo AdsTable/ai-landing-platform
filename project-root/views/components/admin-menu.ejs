@@ -1,0 +1,25 @@
+<% if (user && user.role === 'admin') { %>
+    <nav class="admin-menu">
+        <a href="/admin" class="<%= currentPage === 'dashboard' ? 'active' : '' %>">
+            Dashboard
+        </a>
+        <a href="/admin/generate" class="<%= currentPage === 'generate' ? 'active' : '' %>">
+            Generate Pages
+        </a>
+        <a href="/admin/push" class="<%= currentPage === 'push' ? 'active' : '' %>">
+            Push Manager
+        </a>
+        <a href="/admin/seo" class="<%= currentPage === 'seo' ? 'active' : '' %>">
+            SEO Analysis
+        </a>
+        <a href="/admin/social" class="<%= currentPage === 'social' ? 'active' : '' %>">
+            Social Media
+        </a>
+        <a href="/admin/users" class="<%= currentPage === 'users' ? 'active' : '' %>">
+            Users
+        </a>
+        <a href="/admin/settings" class="<%= currentPage === 'settings' ? 'active' : '' %>">
+            Settings
+        </a>
+    </nav>
+<% } %>

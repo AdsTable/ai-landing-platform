@@ -1,0 +1,13 @@
+<div class="product-card">
+    <% if (imageUrl) { %>
+        <img src="<%= imageUrl %>" alt="<%= title %>" class="product-image">
+    <% } %>
+    <div class="product-info">
+        <h4 class="product-title"><%= title %></h4>
+        <p class="product-description"><%= description %></p>
+        <% if (price) { %>
+            <div class="product-price">From $<%= price %></div>
+        <% } %>
+        <button class="product-cta">Learn More</button>
+    </div>
+</div>

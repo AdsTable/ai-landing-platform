@@ -1,0 +1,31 @@
+<% layout('layouts/main', { 
+    title, 
+    description, 
+    siteName, 
+    tenant, 
+    industry, 
+    location, 
+    type, 
+    languages, 
+    lang 
+}) %>
+
+<article>
+    <h1><%= title %></h1>
+    <% if (imageUrl) { %>
+        <img src="<%= imageUrl %>" alt="<%= title %>">
+    <% } %>
+    <p><%= seoText %></p>
+</article>
+
+<% /* Show translations in preview mode ONLY (safe for SEO) */ %>
+<% if (previewTranslations && translations && Object.keys(translations).length) { %>
+    <hr>
+    <section class="translations-preview">
+        <h2>Translations Preview</h2>
+        <% Object.entries(translations).forEach(([tLang, tText]) => { %>
+            <h3><%= languages.find(l => l.code === tLang).name %></h3>
+            <p><%= tText %></p>
+        <% }) %>
+    </section>
+<% } %>

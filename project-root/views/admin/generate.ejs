@@ -1,0 +1,77 @@
+<% layout('layouts/main', { 
+    title: 'Generate Page', 
+    siteName, 
+    languages, 
+    industries, 
+    lang, 
+    apiKey, 
+    user 
+}) %>
+
+<h1>Generate Landing Page</h1>
+
+<form method="POST" action="/admin/generate">
+    <label>Industry:</label>
+    <select name="industry" required>
+        <% industries.forEach(ind => { %>
+            <option value="<%= ind.name[lang || 'en'] %>">
+                <%= ind.name[lang || 'en'] %>
+            </option>
+        <% }) %>
+    </select>
+
+    <label>Language:</label>
+    <select name="lang" required>
+        <% languages.forEach(l => { %>
+            <option value="<%= l.code %>"><%= l.name %></option>
+        <% }) %>
+    </select>
+
+    <label>Location:</label>
+    <input type="text" name="location" required>
+
+    <label>Type:</label>
+    <input type="text" name="type" required>
+
+    <label>Generated Content:</label>
+    <textarea name="content" id="content" rows="6"></textarea>
+
+    <!-- Translation helper inside admin form -->
+    <div style="margin: 10px 0;">
+        <select id="translate-lang">
+            <% languages.forEach(l => { %>
+                <option value="<%= l.code %>"><%= l.name %></option>
+            <% }) %>
+        </select>
+        <button type="button" id="translate-btn">Translate</button>
+    </div>
+
+    <!-- New preview translations checkbox -->
+    <div style="margin: 10px 0;">
+        <label>
+            <input type="checkbox" name="previewTranslations" value="true">
+            Preview translations after generation
+        </label>
+    </div>
+
+    <button type="submit">Generate</button>
+</form>
+
+<script>
+document.getElementById('translate-btn').addEventListener('click', async () => {
+    const text = document.getElementById('content').value;
+    const targetLang = document.getElementById('translate-lang').value;
+    const res = await fetch('/api/translate', {
+        method: 'POST',
+        headers: { 
+            'Content-Type': 'application/json', 
+            'x-api-key': '<%= apiKey %>' 
+        },
+        body: JSON.stringify({ text, targetLang })
+    });
+    const data = await res.json();
+    if (data.translated) {
+        document.getElementById('content').value = data.translated;
+    }
+});
+</script>

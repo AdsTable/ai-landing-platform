@@ -1,0 +1,48 @@
+<% layout('layouts/main', { title, tenant, user, VAPID_PUBLIC_KEY }) %>
+
+<h1>Usage Statistics for <%= currentMonth %></h1>
+<p>Plan: <strong><%= plan ? plan.name : 'No Plan' %></strong></p>
+
+<div class="usage-stats">
+    <div class="stat-card" data-usage="pages">
+        <h3>Pages Generated</h3>
+        <div class="usage-bar">
+            <div class="usage-fill" style="width: <%= usageStats.pagesGenerated.percentage %>%;"></div>
+        </div>
+        <p><%= usageStats.pagesGenerated.current %> / <%= usageStats.pagesGenerated.limit %> used</p>
+        <p class="remaining"><%= usageStats.pagesGenerated.remaining %> remaining</p>
+    </div>
+    
+    <div class="stat-card" data-usage="api">
+        <h3>API Calls</h3>
+        <div class="usage-bar">
+            <div class="usage-fill" style="width: <%= usageStats.apiCalls.percentage %>%;"></div>
+        </div>
+        <p><%= usageStats.apiCalls.current %> / <%= usageStats.apiCalls.limit %> used</p>
+        <p class="remaining"><%= usageStats.apiCalls.remaining %> remaining</p>
+    </div>
+    
+    <div class="stat-card" data-usage="translations">
+        <h3>Translations</h3>
+        <div class="usage-bar">
+            <div class="usage-fill" style="width: <%= usageStats.translations.percentage %>%;"></div>
+        </div>
+        <p><%= usageStats.translations.current %> / <%= usageStats.translations.limit %> used</p>
+        <p class="remaining"><%= usageStats.translations.remaining %> remaining</p>
+    </div>
+</div>
+
+<% if (plan) { %>
+    <div class="plan-info">
+        <h2>Current Plan: <%= plan.name %></h2>
+        <p>Monthly Price: $<%= plan.price %></p>
+        <button onclick="upgradePlan()">Upgrade Plan</button>
+    </div>
+<% } %>
+
+<script src="/js/usage.js"></script>
+<script>
+function upgradePlan() {
+    alert('Plan upgrade functionality coming soon!');
+}
+</script>

@@ -1,0 +1,114 @@
+<% layout('layouts/main', { title: 'Push Manager', siteName }) %>
+
+<h1>Push Notifications Manager</h1>
+
+<!-- Filter form -->
+<form id="filter-form" method="GET" action="/admin/push">
+    <label>Role:
+        <select name="role" onchange="this.form.submit()">
+            <option value="">All</option>
+            <% roles.forEach(r => { %>
+                <option value="<%= r %>" <%= filters.role === r ? 'selected' : '' %>>
+                    <%= r.charAt(0).toUpperCase() + r.slice(1) %>
+                </option>
+            <% }) %>
+        </select>
+    </label>
+
+    <label>Plan:
+        <select name="planId" onchange="this.form.submit()">
+            <option value="">All</option>
+            <% plans.forEach(p => { %>
+                <option value="<%= p._id %>" <%= filters.planId === String(p._id) ? 'selected' : '' %>>
+                    <%= p.name %>
+                </option>
+            <% }) %>
+        </select>
+    </label>
+
+    <label>Tenant:
+        <select name="tenantId" onchange="this.form.submit()">
+            <option value="">All</option>
+            <% tenants.forEach(t => { %>
+                <option value="<%= t._id %>" <%= filters.tenantId === String(t._id) ? 'selected' : '' %>>
+                    <%= t.name %>
+                </option>
+            <% }) %>
+        </select>
+    </label>
+</form>
+
+<hr>
+
+<!-- Users table (filtered results) -->
+<% if (users.length === 0) { %>
+    <p>No users with push subscriptions found for selected filters.</p>
+<% } else { %>
+    <table>
+        <thead>
+            <tr>
+                <th>Username</th>
+                <th>Role</th>
+                <th>Plan</th>
+                <th>Tenant</th>
+            </tr>
+        </thead>
+        <tbody>
+        <% users.forEach(u => { %>
+            <tr>
+                <td><%= u.username %></td>
+                <td><%= u.role %></td>
+                <td><%= u.planId ? u.planId.name : '-' %></td>
+                <td><%= u.tenantId ? u.tenantId.name : '-' %></td>
+            </tr>
+        <% }) %>
+        </tbody>
+    </table>
+<% } %>
+
+<hr>
+
+<!-- Bulk push notification form -->
+<h2>Send Bulk Push Notification</h2>
+<form id="bulk-push-form">
+    <!-- hidden inputs preserve current filter selection -->
+    <input type="hidden" name="role" value="<%= filters.role || '' %>">
+    <input type="hidden" name="planId" value="<%= filters.planId || '' %>">
+    <input type="hidden" name="tenantId" value="<%= filters.tenantId || '' %>">
+
+    <label>Title:
+        <input type="text" name="title" required>
+    </label>
+    <br>
+    <label>Message:
+        <textarea name="message" rows="3" required></textarea>
+    </label>
+    <br>
+    <button type="submit">Send to Filtered Users</button>
+</form>
+
+<div id="bulk-send-result"></div>
+
+<script>
+document.getElementById('bulk-push-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const formData = new FormData(e.target);
+    const data = Object.fromEntries(formData.entries());
+
+    const res = await fetch('/admin/push/bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+    });
+
+    const result = await res.json();
+    const output = document.getElementById('bulk-send-result');
+
+    if (result.success) {
+        output.innerHTML = `<p>Notifications sent to ${result.count} users.</p>`;
+    } else {
+        output.innerHTML = `<p style="color:red;">Error: ${result.error}</p>`;
+    }
+});
+</script>

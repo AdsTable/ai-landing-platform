@@ -1,0 +1,18 @@
+<% layout('layouts/main', { title: 'Tenant Dashboard', tenant }) %>
+<h1>Welcome, <%= tenant.name %></h1>
+<img src="<%= tenant.logoUrl %>" alt="logo" height="50">
+<p>Plan: <%= tenant.planId.name %></p>
+<p>Pages generated this month: <%= usage.generated %> / <%= usage.limit %></p>
+
+<h2>Your Pages</h2>
+<ul>
+  <% pages.forEach(p => { %>
+    <li><a href="<%= p.url %>" target="_blank"><%= p.key %></a></li>
+  <% }) %>
+</ul>
+
+<hr>
+<h2>Notifications</h2>
+<button id="enable-push">Enable Push Notifications</button>
+
+<a href="/tenant/theme">Edit Theme</a>

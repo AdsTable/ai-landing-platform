@@ -1,0 +1,256 @@
+<% layout('layouts/main', { title, siteName, user, VAPID_PUBLIC_KEY }) %>
+
+<div class="database-dashboard">
+    <h1>Database Management</h1>
+    
+    <!-- Quick Stats -->
+    <div class="stats-grid">
+        <div class="stat-card">
+            <h3>Health Status</h3>
+            <div class="status-indicator <%= healthStatus.overall.status %>">
+                <%= healthStatus.overall.status.toUpperCase() %>
+            </div>
+            <p><%= healthStatus.summary.passed %>/<%= healthStatus.summary.total %> checks passed</p>
+        </div>
+        
+        <div class="stat-card">
+            <h3>Migrations</h3>
+            <div class="stat-number"><%= migrationStatus.executed %></div>
+            <p><%= migrationStatus.pending %> pending</p>
+        </div>
+        
+        <div class="stat-card">
+            <h3>Backups</h3>
+            <div class="stat-number"><%= backups.length %></div>
+            <p>Last: <%= backups[0] ? backups.created.toLocaleDateString() : 'Never' %></p>
+        </div>
+        
+        <div class="stat-card">
+            <h3>Seed Status</h3>
+            <div class="status-indicator <%= seedStatus ? 'healthy' : 'critical' %>">
+                <%= seedStatus ? 'SEEDED' : 'NOT SEEDED' %>
+            </div>
+        </div>
+    </div>
+
+    <!-- Management Sections -->
+    <div class="management-grid">
+        <div class="management-card">
+            <h3>Migrations</h3>
+            <p>Manage database schema changes</p>
+            <div class="actions">
+                <a href="/admin/database/migrations" class="btn btn-primary">Manage Migrations</a>
+                <% if (migrationStatus.pending > 0) { %>
+                    <button onclick="runMigrations()" class="btn btn-warning">
+                        Run <%= migrationStatus.pending %> Pending
+                    </button>
+                <% } %>
+            </div>
+        </div>
+
+        <div class="management-card">
+            <h3>Backups</h3>
+            <p>Create and restore database backups</p>
+            <div class="actions">
+                <a href="/admin/database/backups" class="btn btn-primary">Manage Backups</a>
+                <button onclick="createBackup()" class="btn btn-success">Create Backup</button>
+            </div>
+        </div>
+
+        <div class="management-card">
+            <h3>Health Monitoring</h3>
+            <p>Monitor database performance and status</p>
+            <div class="actions">
+                <a href="/admin/database/health" class="btn btn-primary">View Details</a>
+                <button onclick="runHealthCheck()" class="btn btn-info">Run Check</button>
+            </div>
+        </div>
+
+        <div class="management-card">
+            <h3>Seed Data</h3>
+            <p>Initialize database with default data</p>
+            <div class="actions">
+                <a href="/admin/database/seed" class="btn btn-primary">Manage Seed</a>
+                <% if (!seedStatus) { %>
+                    <button onclick="runSeed()" class="btn btn-success">Run Seed</button>
+                <% } %>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Activity -->
+    <div class="recent-activity">
+        <h3>Recent Activity</h3>
+        <div class="activity-list">
+            <% if (backups.length > 0) { %>
+                <% backups.forEach(backup => { %>
+                    <div class="activity-item">
+                        <span class="activity-type">Backup</span>
+                        <span class="activity-name"><%= backup.filename %></span>
+                        <span class="activity-time"><%= backup.created.toLocaleString() %></span>
+                        <span class="activity-size"><%= backup.size %></span>
+                    </div>
+                <% }) %>
+            <% } else { %>
+                <p>No recent activity</p>
+            <% } %>
+        </div>
+    </div>
+</div>
+
+<script>
+async function runMigrations() {
+    if (!confirm('Run pending migrations? This cannot be undone.')) return;
+    
+    try {
+        const response = await fetch('/admin/database/migrations/run', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        
+        const result = await response.json();
+        if (result.success) {
+            alert(result.message);
+            location.reload();
+        } else {
+            alert('Migration failed: ' + result.message);
+        }
+    } catch (error) {
+        alert('Error running migrations');
+    }
+}
+
+async function createBackup() {
+    const description = prompt('Backup description (optional):');
+    
+    try {
+        const response = await fetch('/admin/database/backups/create', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ description: description || '' })
+        });
+        
+        const result = await response.json();
+        if (result.success) {
+            alert(result.message);
+        } else {
+            alert('Backup failed: ' + result.message);
+        }
+    } catch (error) {
+        alert('Error creating backup');
+    }
+}
+
+async function runHealthCheck() {
+    try {
+        const response = await fetch('/admin/database/health/check', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        
+        const result = await response.json();
+        if (result.success) {
+            alert(`Health check completed: ${result.healthStatus.overall.status}`);
+            location.reload();
+        } else {
+            alert('Health check failed');
+        }
+    } catch (error) {
+        alert('Error running health check');
+    }
+}
+
+async function runSeed() {
+    if (!confirm('Seed database with initial data?')) return;
+    
+    try {
+        const response = await fetch('/admin/database/seed/run', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        
+        const result = await response.json();
+        if (result.success) {
+            alert(result.message);
+            location.reload();
+        } else {
+            alert('Seed failed: ' + result.message);
+        }
+    } catch (error) {
+        alert('Error running seed');
+    }
+}
+</script>
+
+<style>
+.database-dashboard {
+    padding: 2rem;
+}
+
+.stats-grid, .management-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1.5rem;
+    margin: 2rem 0;
+}
+
+.stat-card, .management-card {
+    background: white;
+    padding: 1.5rem;
+    border-radius: 8px;
+    border: 1px solid #ddd;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.stat-number {
+    font-size: 2rem;
+    font-weight: bold;
+    color: #007bff;
+}
+
+.status-indicator {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    border-radius: 4px;
+    font-weight: bold;
+    color: white;
+}
+
+.status-indicator.healthy { background: #28a745; }
+.status-indicator.degraded { background: #ffc107; color: #000; }
+.status-indicator.critical { background: #dc3545; }
+
+.actions {
+    margin-top: 1rem;
+}
+
+.actions .btn {
+    margin-right: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.recent-activity {
+    margin-top: 3rem;
+    background: white;
+    padding: 1.5rem;
+    border-radius: 8px;
+    border: 1px solid #ddd;
+}
+
+.activity-item {
+    display: grid;
+    grid-template-columns: 80px 1fr auto auto;
+    gap: 1rem;
+    padding: 0.75rem 0;
+    border-bottom: 1px solid #eee;
+}
+
+.activity-type {
+    background: #007bff;
+    color: white;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    text-align: center;
+}
+</style>

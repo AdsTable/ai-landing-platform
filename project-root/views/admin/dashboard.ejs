@@ -1,0 +1,22 @@
+<% layout('layouts/main', { title: 'Admin Dashboard', siteName }) %>
+<h1>Admin Dashboard</h1>
+<p>Total generated pages: <%= keys.length %></p>
+<h2>AI Traffic Suggestions</h2>
+<pre><%= analytics %></pre>
+<a href="/admin/generate" class="button">Generate new page</a>
+
+<hr>
+<h2>Notifications</h2>
+<button id="enable-push">Enable Push Notifications</button>
+
+<hr>
+<h2>Test Push Notification</h2>
+<button id="send-test-push">Send Test Push</button>
+
+<script>
+document.getElementById("send-test-push").addEventListener("click", async () => {
+    const res = await fetch("/admin/push/test", { method: "POST" });
+    const data = await res.json();
+    alert(data.message || "Push sent!");
+});
+</script>

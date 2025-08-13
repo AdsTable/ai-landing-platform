@@ -1,0 +1,40 @@
+openapi: 3.0.0
+info:
+  title: AI Multi-Industry SaaS Landing Platform API
+  version: 1.0.0
+servers:
+  - url: https://api.example.com
+paths:
+  /api/pages:
+    get:
+      summary: List cached landing pages
+      responses:
+        "200":
+          description: OK
+    post:
+      summary: Create a new landing page
+      responses:
+        "200":
+          description: Created
+  /api/translate:
+    post:
+      summary: Translate a given text to a target language
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                text:
+                  type: string
+                targetLang:
+                  type: string
+      responses:
+        "200":
+          description: Translated string
+  /api/tenants:
+    get:
+      summary: List all tenants
+      responses:
+        "200":
+          description: OK

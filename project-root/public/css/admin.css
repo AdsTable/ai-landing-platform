@@ -1,0 +1,45 @@
+h1, h2 {
+  margin-top: 0;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1rem 0;
+}
+
+table th, table td {
+  border: 1px solid #ddd;
+  padding: 0.5rem;
+}
+
+table th {
+  background-color: #f9f9f9;
+}
+
+a.button, button {
+  padding: 0.5rem 1rem;
+  background-color: var(--primary-color);
+  border: none;
+  color: #fff;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+a.button:hover, button:hover {
+  background-color: #0056b3;
+}
+
+form label {
+  display: block;
+  margin-top: 0.5rem;
+  font-weight: bold;
+}
+
+form input, form select, form textarea {
+  width: 100%;
+  padding: 0.5rem;
+  margin-top: 0.2rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}

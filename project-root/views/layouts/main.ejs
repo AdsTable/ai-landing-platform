@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="<%= description %>">
+    <title><%= title %> - <%= siteName || (tenant && tenant.name) %></title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body style="--primary-color: <%= tenant ? tenant.primaryColor : '#007bff' %>;">
+    <header>
+        <img src="<%= tenant ? tenant.logoUrl : '/default-logo.png' %>" alt="Logo" height="40">
+
+        <% if (languages) { %>
+            <nav class="lang-switcher">
+                <% languages.forEach(l => { %>
+                    <% if (l.code !== lang) { %>
+                        <a href="/market/<%= industry %>/<%= l.code %>/<%= location %>/<%= type %>"><%= l.name %></a>
+                    <% } else { %>
+                        <span class="active"><%= l.name %></span>
+                    <% } %>
+                <% }) %>
+            </nav>
+        <% } %>
+
+        <nav class="admin-menu">
+            <a href="/admin">Dashboard</a>
+            <a href="/admin/generate">Generate Page</a>
+            <% if (user && user.role === 'admin') { %>
+                <a href="/admin/push">Push Manager</a>
+            <% } %>
+        </nav>
+    </header>
+
+    <main>
+        <%- body %>
+    </main>
+
+    <footer>
+        <p>&copy; <%= new Date().getFullYear() %> <%= siteName || (tenant && tenant.name) %></p>
+    </footer>
+
+    <script>
+      const VAPID_PUBLIC_KEY = "<%= VAPID_PUBLIC_KEY || '' %>";
+    </script>
+    <script src="/js/pwa-register.js"></script>
+    <script src="/js/push-subscribe.js"></script>
+</body>
+</html>
