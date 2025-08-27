@@ -185,3 +185,25 @@ logger.js (BASE)
 ├── massGenerator.js → ALL SERVICES ⚠️ CRITICAL
 ├── webhooks.js → logger.js, billing.js, User
 └── seed.js → ALL MODELS ⚠️
+
+test/
+├── helpers/
+│ ├── setup.js # Test environment initialization
+│ ├── teardown.js # Cleanup after tests
+│ ├── fixtures.js # Test data fixtures
+│ └── mocks.js # External service mocks
+├── unit/
+│ ├── services.test.js # Individual service testing
+│ ├── models.test.js # Database model testing
+│ ├── middleware.test.js # Middleware function testing
+│ └── utils.test.js # Utility function testing
+├── integration/
+│ ├── api.test.js # API endpoint integration
+│ ├── database.test.js # Database operations
+│ ├── auth.test.js # Authentication flows
+│ └── billing.test.js # Payment processing
+├── e2e/
+│ ├── routes.test.js # End-to-end route testing
+│ ├── workflows.test.js # Business process testing
+│ └── admin.test.js # Admin panel testing
+└── run-all-tests.js # Master test runner

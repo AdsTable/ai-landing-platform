@@ -115,7 +115,7 @@ sudo nano /etc/hosts
 
 В вашем серверном коде (например, в Express middleware) уже есть логика загрузки данных арендатора (тенанта) по домену запроса:
 
-javascript
+"javascript"
 app.use(async (req, res, next) => {
     const host = req.hostname.toLowerCase();
     const tenant = await Tenant.findOne({ domain: host });
@@ -124,6 +124,8 @@ app.use(async (req, res, next) => {
 });
 
 Она означает, что при заходе на http://realestate.localhost:3000 будет загружен бренд "Demo Real Estate", а на http://tourism.localhost:3000 — "Demo Tourism".
+
+
 # 4. Тестирование
 
     Откройте в браузере http://realestate.localhost:3000 — сайт покажет бренд с логотипом, цветами и настройками для Real Estate.

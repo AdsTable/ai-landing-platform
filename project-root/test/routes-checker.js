@@ -2,6 +2,7 @@ import axios from "axios";
 import tough from "tough-cookie";
 import { wrapper } from "axios-cookiejar-support";
 import fs from "fs";
+import { getTestBaseUrl } from "../utils/url.js";
 import path from "path";
 import dotenv from "dotenv";
 
