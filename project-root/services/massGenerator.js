@@ -1,6 +1,11 @@
 import { getTrendingCities } from './trends.js';
+import { translateText } from "./translate.js";
+import { sendEmails } from "./email.js";
+import { updateAnalytics } from "./analytics.js";
 import { generateDescription } from './ai.js';
+import { generateContent } from "./ai.js";
 import { generateImage } from './images.js';
+import { optimizeImages } from "./images.js";
 import { saveToCache } from './cache.js';
 import settings from '../config/settings.js';
 

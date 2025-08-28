@@ -1,9 +1,9 @@
 import webpush from 'web-push';
 
 webpush.setVapidDetails(
-    'mailto:admin@domain.com',
-    process.env.VAPID_PUBLIC,
-    process.env.VAPID_PRIVATE
+    process.env.VAPID_MAILTO || 'mailto:admin@yourdomain.com',
+    process.env.VAPID_PUBLIC_KEY,
+    process.env.VAPID_PRIVATE_KEY
 );
 
 /**

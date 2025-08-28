@@ -57,7 +57,7 @@ mongoose.connect(process.env.MONGO_URI, {
 
 // Enhanced session config
 app.use(session({
-    secret: process.env.SESSION_SECRET?.split(',') || ['fallback-secret'],
+    secret: (process.env.SESSION_SECRET?.split(',') || ['fallback-secret'])[0],
     resave: false,
     saveUninitialized: false,
     store: MongoStore.create({
@@ -114,6 +114,11 @@ import tenantUsageRoutes from "./routes/tenant/usage.js";
 import billingSubscriptionRoutes from "./routes/billing/subscription.js";
 import billingWebhooksRoutes from "./routes/billing/webhooks.js";
 import billingInvoicesRoutes from "./routes/billing/invoices.js";
+
+import { serviceRegistry } from "./services/registry.js";
+import aiService from "./services/ai.js";
+import billingService from "./services/billing.js";
+import massGeneratorService from "./services/massGenerator.js";
 
 // ===== MIDDLEWARE FOR USER LOADING =====
 // Load user into req.user if session exists
@@ -174,6 +179,35 @@ app.use("/billing", billingSubscriptionRoutes);
 app.use("/billing/webhooks", billingWebhooksRoutes); // Webhooks don't need auth
 app.use("/billing", billingInvoicesRoutes);
 
+// Register services with dependencies BEFORE starting server
+async function initializeServices() {
+    try {
+        // Register all services
+        serviceRegistry.register('logger', null, []); // Base service
+        serviceRegistry.register('ai', aiService, ['logger']);
+        serviceRegistry.register('billing', billingService, ['logger']);
+        serviceRegistry.register('massGenerator', massGeneratorService, ['ai', 'billing', 'logger']);
+        
+        // Initialize critical services
+        await serviceRegistry.initialize('ai');
+        await serviceRegistry.initialize('billing');
+        
+        logger.info('Critical services initialized successfully');
+        
+    } catch (error) {
+        logger.error('Service initialization failed', { error: error.message });
+        process.exit(1);
+    }
+}
+
+// Initialize services before starting server
+initializeServices().then(() => {
+    app.listen(PORT, () => {
+        console.log(`Server running securely on port ${PORT}`);
+        console.log('Services status:', serviceRegistry.getStatus());
+    });
+});
+
 // Enhanced health check
 app.get('/health', (req, res) => {
     res.json({
@@ -216,3 +250,11 @@ process.on('SIGTERM', () => {
     mongoose.connection.close();
     process.exit(0);
 });
+
+process.on('SIGINT', async () => {
+    console.log('SIGINT received. Shutting down gracefully...');
+    await serviceRegistry.shutdown();
+    mongoose.connection.close();
+    process.exit(0);
+});
+

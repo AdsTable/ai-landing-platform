@@ -24,8 +24,8 @@ router.get("/generate", requireAuth, requireRole("admin"), (req, res) => {
         apiKey: process.env.API_KEY, // for translate button in UI
         siteName: settings.siteName,
         user: req.user,
-        VAPID_PUBLIC_KEY: process.env.VAPID_PUBLIC_KEY, // ✅ ADD MISSING
-        title: 'Generate Page' // ✅ ADD MISSING
+        VAPID_PUBLIC_KEY: process.env.VAPID_PUBLIC_KEY,
+        title: 'Generate Page'
     });
 });
 
