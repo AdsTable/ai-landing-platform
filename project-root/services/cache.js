@@ -16,8 +16,26 @@ let isRedisConnected = false;
  * Returns initialization status for service registry integration
  */
 export async function initialize() {
+    if (redisClient) {
+        return { status: 'already-initialized' };
+    }
+
     try {
-        redisClient = createClient({ url: REDIS_URL });
+        redisClient = createClient({ 
+            url: REDIS_URL,
+            socket: {
+                connectTimeout: 5000,
+                lazyConnect: true,
+                reconnectStrategy: (retries) => {
+                    // Stop reconnecting after 3 attempts to avoid spam
+                    if (retries > 3) {
+                        console.log('Redis: Max reconnection attempts reached, using memory-only mode');
+                        return false;
+                    }
+                    return Math.min(retries * 1000, 5000);
+                }
+            }
+        });
         
         // Handle Redis connection events
         redisClient.on('error', (err) => {
@@ -34,6 +52,11 @@ export async function initialize() {
             console.warn('Redis cache disconnected, using in-memory fallback');
             isRedisConnected = false;
         });
+
+        redisClient.on('end', () => {
+            console.log('Redis connection ended, using in-memory fallback');
+            isRedisConnected = false;
+        });
         
         // Attempt connection with timeout
         await redisClient.connect();
@@ -42,6 +65,7 @@ export async function initialize() {
     } catch (error) {
         console.warn('Failed to initialize Redis cache, using in-memory fallback:', error.message);
         isRedisConnected = false;
+        redisClient = null; // Clear the client reference
         return { status: 'degraded', message: 'Using in-memory cache fallback' };
     }
 }

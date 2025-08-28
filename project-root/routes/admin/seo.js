@@ -1,14 +1,15 @@
 import express from "express";
 import { requireAuth, requireRole } from "../../middleware/auth.js";
 import { asyncHandler } from "../../middleware/errorHandler.js";
-import { validateSeoUrl } from "../../middleware/validation.js";
+import { body } from "express-validator";
+import { handleValidationErrors } from "../../middleware/validation.js";
 import { analyzeCompetitorSEO } from "../../services/seo-analyze.js";
 import { suggestKeywordsFromText } from "../../services/keywords.js";
 
 const router = express.Router();
 
 // Add validation for SEO analysis
-const validateSeoUrl = [
+const validateSeoUrlLocal = [
     body('url')
         .isURL()
         .withMessage('Valid URL required'),
@@ -33,7 +34,7 @@ router.get("/seo",
 router.post("/seo/analyze", 
     requireAuth, 
     requireRole("admin"),
-    validateSeoUrl,
+    validateSeoUrlLocal,
     asyncHandler(async (req, res) => {
         const { url } = req.body;
         
