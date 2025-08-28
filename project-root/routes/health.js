@@ -49,10 +49,29 @@ function isIpBlocked(ip) {
   return false;
 }
 
+// Run a single service health check with timeout protection
+async function checkWithTimeout(name) {
+  try {
+    const result = await Promise.race([
+      serviceRegistry.checkHealth(name),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("health_check_timeout")), HEALTH_TIMEOUTMS_SAFE)
+      ),
+    ]);
+    const ok = (result?.status || "").toLowerCase() === "healthy";
+    return { name, ok, result, error: ok ? null : (result?.reason || null) };
+  } catch (error) {
+    return { name, ok: false, result: null, error: error?.message || String(error) };
+  }
+}
+
+// Ensure HEALTH_TIMEOUT_MS is a safe finite number
+const HEALTH_TIMEOUTMS_SAFE = Number.isFinite(HEALTH_TIMEOUT_MS) ? HEALTH_TIMEOUT_MS : 2000;
+
 /**
  * GET /health/services
  * - passive mode (default): returns registry status only, no external calls
- * - active mode (?active=true): runs healthCheck() for services, caches results 10–30s
+ * - active mode (?active=true): runs per-service checkHealth() with timeout, caches results 10–30s
  */
 router.get("/services", async (req, res) => {
   try {
@@ -72,15 +91,20 @@ router.get("/services", async (req, res) => {
     }
 
     // 3) Base passive status (no external calls)
-    const base = serviceRegistry.getStatus();
+    const base = serviceRegistry.getStatus() || {};
+    const servicesObj = base.services || {};
+    // Normalize services to an array: if object -> array of { name, ...meta }
+    const servicesArr = Array.isArray(servicesObj)
+      ? servicesObj
+      : Object.entries(servicesObj).map(([name, meta]) => ({ name, ...meta }));
+
     const active = String(req.query.active || "false").toLowerCase() === "true";
 
     if (!active) {
-      // Passive mode: return registry status
+      // Passive mode: return registry status with normalized services shape
       res.setHeader("X-Health-Mode", "passive");
-      // Clients shouldn't cache this endpoint at their side
       res.setHeader("Cache-Control", "no-store");
-      return res.json({ mode: "passive", ...base });
+      return res.json({ mode: "passive", ...base, services: servicesArr });
     }
 
     // 4) Active mode: serve from cache if fresh
@@ -94,22 +118,20 @@ router.get("/services", async (req, res) => {
     // 5) Deduplicate parallel requests running active health checks
     if (!servicesHealthCache.inFlight) {
       servicesHealthCache.inFlight = (async () => {
-        // Run all health checks in parallel with a per-service timeout
-        const checks = await serviceRegistry.runHealthChecks({
-          timeoutMs: HEALTH_TIMEOUT_MS,
-          parallel: true,
-        });
+        const names = servicesArr.map((s) => s.name);
 
-        // Merge passive registry status with active results by service name
-        const byName = new Map(checks.checks.map((c) => [c.name, c]));
-        const services = base.services.map((s) => ({
+        // Run checks concurrently with per-check timeout
+        const checks = await Promise.all(names.map(checkWithTimeout));
+
+        const byName = new Map(checks.map((c) => [c.name, c]));
+        const services = servicesArr.map((s) => ({
           ...s,
           health: byName.get(s.name) || null,
         }));
 
         const payload = {
           mode: "active",
-          timestamp: checks.timestamp,
+          timestamp: new Date().toISOString(),
           ttlSeconds: HEALTH_CACHE_TTL,
           services,
         };
