@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { serviceRegistry } from "../services/registry.js";
+import { healthMetrics } from "../middleware/monitoring.js"; // Track health endpoint errors
 
 /**
  * Health routes for internal service status and active health checks.
@@ -43,7 +44,6 @@ const servicesHealthCache = {
 };
 
 // Ensure HEALTH_TIMEOUT_MS is a safe finite number
-// Moved above checkWithTimeout to avoid potential linter warnings (no-use-before-define)
 const HEALTH_TIMEOUTMS_SAFE = Number.isFinite(HEALTH_TIMEOUT_MS) ? HEALTH_TIMEOUT_MS : 2000;
 
 // Basic IP policy checks
@@ -130,8 +130,10 @@ router.get("/services", async (req, res) => {
           health: byName.get(s.name) || null,
         }));
 
+        // Keep response schema consistent with passive by including base fields
         const payload = {
           mode: "active",
+          ...base, // include registry, metrics, initializationOrder for parity
           timestamp: new Date().toISOString(),
           ttlSeconds: HEALTH_CACHE_TTL,
           services,
@@ -155,7 +157,8 @@ router.get("/services", async (req, res) => {
     res.setHeader("Cache-Control", "no-store");
     return res.json(result);
   } catch (error) {
-    // Ensure errors do not expose internal details unnecessarily
+    // Record error for health metrics and avoid leaking internals
+    try { healthMetrics.incrementErrors(); } catch {}
     return res.status(500).json({ error: "Health check failed", details: error.message });
   }
 });
