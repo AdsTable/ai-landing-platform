@@ -1,6 +1,3 @@
-import rateLimit from "express-rate-limit";
-export { rateLimit }; // Export for server.js usage
-
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import cors from "cors";
@@ -10,7 +7,7 @@ import xss from "xss";
 // Rate limiting configurations
 export const generalLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 100, // limit each IP to 100 requests per windowMs
+    max: 100, // Limit each IP to 100 requests per windowMs
     message: "Too many requests from this IP, please try again later.",
     standardHeaders: true,
     legacyHeaders: false,
