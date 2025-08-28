@@ -15,7 +15,7 @@ import cors from "cors";
 import { bootstrapServices } from "./services/bootstrap.js";
 import { serviceRegistry } from "./services/registry.js";
 
-// Redis-backed health routes
+// Health routes
 import healthRoutes from "./routes/health.js";
 
 dotenv.config();
@@ -163,7 +163,7 @@ app.use("/billing", billingSubscriptionRoutes);
 app.use("/billing/webhooks", billingWebhooksRoutes);
 app.use("/billing", billingInvoicesRoutes);
 
-// Mount health router with Redis-backed active checks
+// Mount health router
 app.use("/health", healthRoutes);
 
 // Lightweight app health (backward compatibility)

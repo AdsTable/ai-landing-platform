@@ -42,6 +42,10 @@ const servicesHealthCache = {
   inFlight: null,    // Promise for ongoing active check to deduplicate concurrent calls
 };
 
+// Ensure HEALTH_TIMEOUT_MS is a safe finite number
+// Moved above checkWithTimeout to avoid potential linter warnings (no-use-before-define)
+const HEALTH_TIMEOUTMS_SAFE = Number.isFinite(HEALTH_TIMEOUT_MS) ? HEALTH_TIMEOUT_MS : 2000;
+
 // Basic IP policy checks
 function isIpBlocked(ip) {
   if (HEALTH_DENYLIST.length && HEALTH_DENYLIST.includes(ip)) return true;
@@ -64,9 +68,6 @@ async function checkWithTimeout(name) {
     return { name, ok: false, result: null, error: error?.message || String(error) };
   }
 }
-
-// Ensure HEALTH_TIMEOUT_MS is a safe finite number
-const HEALTH_TIMEOUTMS_SAFE = Number.isFinite(HEALTH_TIMEOUT_MS) ? HEALTH_TIMEOUT_MS : 2000;
 
 /**
  * GET /health/services
