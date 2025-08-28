@@ -1,9 +1,10 @@
 import { Router } from "express";
 import { serviceRegistry } from "../services/registry.js";
+import * as cache from "../services/cache.js";
 
 /**
  * Health routes for internal service status and active health checks.
- * Security-first defaults with IP policy, admin gating, caching, and concurrency de-duplication.
+ * Security-first defaults with IP policy, admin gating, Redis-backed caching, and concurrency de-duplication.
  *
  * Mount as: app.use('/health', healthRoutes);
  * Endpoint:  GET /health/services[?active=true]
@@ -14,6 +15,7 @@ import { serviceRegistry } from "../services/registry.js";
  * - HEALTH_IP_DENYLIST=5.6.7.8     # optional, CSV; always block these IPs
  * - HEALTH_CHECK_CACHE_SECONDS=20  # TTL for active checks cache (clamped 10..30)
  * - HEALTH_CHECK_TIMEOUT_MS=2000   # timeout per service healthCheck
+ * - REDIS_URL=redis://127.0.0.1:6379 # Redis connection URL
  *
  * Note:
  * - Ensure app.set('trust proxy', 1) if running behind reverse proxy, so req.ip is correct.
@@ -35,12 +37,27 @@ const HEALTH_TIMEOUT_MS = Number(process.env.HEALTH_CHECK_TIMEOUT_MS || 2000);
 const HEALTH_ALLOWLIST = parseList(process.env.HEALTH_IP_ALLOWLIST);
 const HEALTH_DENYLIST = parseList(process.env.HEALTH_IP_DENYLIST);
 
-// In-memory cache for active health results
+// Redis cache key for active health results
+const ACTIVE_HEALTH_CACHE_KEY = "health:services:active:v1";
+
+// In-memory cache for active health results (fallback and in-flight deduplication)
 const servicesHealthCache = {
   data: null,        // cached payload
   expiresAt: 0,      // epoch ms
   inFlight: null,    // Promise for ongoing active check to deduplicate concurrent calls
 };
+
+// Initialize cache service (non-blocking)
+let cacheInitialized = false;
+cache.initialize()
+  .then((result) => {
+    console.log('Health cache initialized:', result.message);
+    cacheInitialized = true;
+  })
+  .catch((err) => {
+    console.warn('Health cache initialization failed, using fallback:', err.message);
+    cacheInitialized = true; // Still consider initialized for fallback mode
+  });
 
 // Basic IP policy checks
 function isIpBlocked(ip) {
@@ -50,9 +67,20 @@ function isIpBlocked(ip) {
 }
 
 /**
+ * Convert serviceRegistry.getStatus().services object to array format
+ * Handles the fact that registry returns services as an object keyed by name
+ */
+function convertServicesObjectToArray(servicesObj) {
+  return Object.entries(servicesObj || {}).map(([name, service]) => ({
+    name,
+    ...service
+  }));
+}
+
+/**
  * GET /health/services
  * - passive mode (default): returns registry status only, no external calls
- * - active mode (?active=true): runs healthCheck() for services, caches results 10–30s
+ * - active mode (?active=true): runs healthCheck() for services, caches results 10–30s in Redis with in-memory fallback
  */
 router.get("/services", async (req, res) => {
   try {
@@ -72,23 +100,48 @@ router.get("/services", async (req, res) => {
     }
 
     // 3) Base passive status (no external calls)
-    const base = serviceRegistry.getStatus();
+    const baseStatus = serviceRegistry.getStatus();
+    // Convert services object to array format as required
+    const base = {
+      ...baseStatus,
+      services: convertServicesObjectToArray(baseStatus.services)
+    };
+    
     const active = String(req.query.active || "false").toLowerCase() === "true";
 
     if (!active) {
       // Passive mode: return registry status
       res.setHeader("X-Health-Mode", "passive");
-      // Clients shouldn't cache this endpoint at their side
       res.setHeader("Cache-Control", "no-store");
       return res.json({ mode: "passive", ...base });
     }
 
-    // 4) Active mode: serve from cache if fresh
+    // 4) Active mode: check Redis cache first, then in-memory fallback
+    let cachedResult = null;
+    let cacheMode = null;
+    
+    if (cacheInitialized) {
+      try {
+        cachedResult = await cache.getJSON(ACTIVE_HEALTH_CACHE_KEY);
+        if (cachedResult) {
+          cacheMode = "active-cached-redis";
+        }
+      } catch (error) {
+        console.warn('Redis cache read failed, trying memory cache:', error.message);
+      }
+    }
+    
+    // Fallback to in-memory cache if Redis failed
     const now = Date.now();
-    if (servicesHealthCache.data && servicesHealthCache.expiresAt > now) {
-      res.setHeader("X-Health-Mode", "active-cached");
+    if (!cachedResult && servicesHealthCache.data && servicesHealthCache.expiresAt > now) {
+      cachedResult = servicesHealthCache.data;
+      cacheMode = "active-cached-mem";
+    }
+    
+    if (cachedResult) {
+      res.setHeader("X-Health-Mode", cacheMode);
       res.setHeader("Cache-Control", "no-store");
-      return res.json(servicesHealthCache.data);
+      return res.json(cachedResult);
     }
 
     // 5) Deduplicate parallel requests running active health checks
@@ -114,7 +167,13 @@ router.get("/services", async (req, res) => {
           services,
         };
 
-        // Cache for TTL window
+        // Cache in Redis with TTL (non-blocking)
+        if (cacheInitialized) {
+          cache.setJSON(ACTIVE_HEALTH_CACHE_KEY, payload, HEALTH_CACHE_TTL)
+            .catch(err => console.warn('Redis cache write failed:', err.message));
+        }
+
+        // Cache for TTL window in memory as fallback
         servicesHealthCache.data = payload;
         servicesHealthCache.expiresAt = Date.now() + HEALTH_CACHE_TTL * 1000;
 

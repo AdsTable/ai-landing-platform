@@ -118,3 +118,9 @@ router.get("/market/:industry/:lang/:location/:type",
                 });
                 
                 throw error; // async
+            }
+        }
+    })
+);
+
+export default router;

@@ -16,8 +16,6 @@ import { bootstrapServices } from "./services/bootstrap.js";
 import { serviceRegistry } from "./services/registry.js";
 
 import healthRoutes from "./routes/health.js";
-app.set("trust proxy", 1);
-app.use("/health", healthRoutes);
 
 dotenv.config();
 
@@ -167,96 +165,15 @@ app.use("/billing", billingInvoicesRoutes);
 
 // ===== HEALTH ENDPOINTS =====
 
+// Mount health routes
+app.use("/health", healthRoutes);
+
 // Lightweight app health
 app.get("/health", (req, res) => {
   res.json({
     status: "ok",
     ...healthMetrics.getMetrics(),
   });
-});
-
-// Active health-check cache and IP policy
-const HEALTH_CACHE_TTL = (() => {
-  const raw = Number(process.env.HEALTH_CHECK_CACHE_SECONDS || 20);
-  const val = Number.isFinite(raw) ? raw : 20;
-  return Math.min(30, Math.max(10, val));
-})();
-const servicesHealthCache = { data: null, expiresAt: 0, inFlight: null };
-const parseList = (v) => (v || "").split(",").map((s) => s.trim()).filter(Boolean);
-const HEALTH_ALLOWLIST = parseList(process.env.HEALTH_IP_ALLOWLIST);
-const HEALTH_DENYLIST = parseList(process.env.HEALTH_IP_DENYLIST);
-
-function isIpBlocked(ip) {
-  if (HEALTH_DENYLIST.length && HEALTH_DENYLIST.includes(ip)) return true;
-  if (HEALTH_ALLOWLIST.length && !HEALTH_ALLOWLIST.includes(ip)) return true;
-  return false;
-}
-
-/**
- * Aggregated services health:
- * - Default: passive registry status (no active checks)
- * - Active checks: add ?active=true (runs healthCheck() with timeouts) and caches result for 10–30 seconds
- * Security:
- * - Closed by default unless HEALTH_PUBLIC=true
- * - If closed, requires authenticated admin user
- * - IP allow/deny lists supported via env
- */
-app.get("/health/services", async (req, res) => {
-  if (isIpBlocked(req.ip)) {
-    return res.status(403).json({ error: "Forbidden by IP policy" });
-  }
-
-  const isPublic = String(process.env.HEALTH_PUBLIC || "false").toLowerCase() === "true";
-  if (!isPublic) {
-    const isAdmin = Boolean(req.user && (req.user.role === "admin" || req.user.isAdmin));
-    if (!isAdmin) return res.status(403).json({ error: "Forbidden" });
-  }
-
-  const active = String(req.query.active || "false").toLowerCase() === "true";
-
-  try {
-    const base = serviceRegistry.getStatus();
-    if (!active) {
-      return res.json({ mode: "passive", ...base });
-    }
-
-    const now = Date.now();
-    if (servicesHealthCache.data && servicesHealthCache.expiresAt > now) {
-      return res.json(servicesHealthCache.data);
-    }
-
-    if (!servicesHealthCache.inFlight) {
-      servicesHealthCache.inFlight = (async () => {
-        const checks = await serviceRegistry.runHealthChecks({
-          timeoutMs: Number(process.env.HEALTH_CHECK_TIMEOUT_MS || 2000),
-          parallel: true,
-        });
-
-        const activeMap = new Map(checks.checks.map((c) => [c.name, c]));
-        const services = base.services.map((s) => ({ ...s, health: activeMap.get(s.name) || null }));
-
-        const payload = {
-          mode: "active",
-          timestamp: checks.timestamp,
-          ttlSeconds: HEALTH_CACHE_TTL,
-          services,
-        };
-
-        servicesHealthCache.data = payload;
-        servicesHealthCache.expiresAt = now + HEALTH_CACHE_TTL * 1000;
-        return payload;
-      })().finally(() => {
-        setTimeout(() => {
-          servicesHealthCache.inFlight = null;
-        }, 0);
-      });
-    }
-
-    const result = await servicesHealthCache.inFlight;
-    return res.json(result);
-  } catch (error) {
-    return res.status(500).json({ error: "Health check failed", details: error.message });
-  }
 });
 
 // 404 and error handlers
