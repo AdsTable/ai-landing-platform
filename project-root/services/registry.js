@@ -1,11 +1,6 @@
 import { logger } from "./logger.js";
 import { EventEmitter } from "events";
 
-/**
- * Enterprise Service Registry - Advanced dependency injection container
- * Features: Health monitoring, metrics, hot-reload, service discovery
- * @version 2.0.0 (2025 Edition)
- */
 class ServiceRegistry extends EventEmitter {
     constructor() {
         super();
@@ -493,6 +488,39 @@ class ServiceRegistry extends EventEmitter {
             metadata.stoppedAt = new Date().toISOString();
         }
     }
+
+    async runHealthChecks({ timeoutMs = 2000, parallel = true } = {}) {
+    const tasks = [];
+    for (const [name, entry] of this.services.entries()) {
+      const hc = entry.options?.healthCheck;
+      if (typeof hc !== "function") continue;
+
+      const run = async () => {
+        try {
+          const result = await Promise.race([
+            Promise.resolve(hc()),
+            new Promise((_, reject) => setTimeout(() => reject(new Error("health_check_timeout")), timeoutMs)),
+          ]);
+          return { name, ok: true, result, error: null };
+        } catch (error) {
+          return { name, ok: false, result: null, error: error.message || String(error) };
+        }
+      };
+
+      tasks.push(run());
+      if (!parallel) {
+        // sequential mode support
+        // eslint-disable-next-line no-await-in-loop
+        await tasks[tasks.length - 1];
+      }
+    }
+
+    const results = parallel ? await Promise.all(tasks) : tasks;
+    return {
+      timestamp: new Date().toISOString(),
+      checks: results,
+    };
+  }
 
     /**
      * Graceful shutdown of all services

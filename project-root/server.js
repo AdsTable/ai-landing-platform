@@ -1,4 +1,4 @@
-import fs from 'fs';
+import fs from "fs";
 import express from "express";
 import session from "express-session";
 import MongoStore from "connect-mongo";
@@ -6,33 +6,41 @@ import mongoose from "mongoose";
 import path from "path";
 import dotenv from "dotenv";
 
-// Security imports
 import { helmetConfig, corsConfig, generalLimiter, authLimiter, sanitizeInput } from "./middleware/security.js";
 import { globalErrorHandler, notFoundHandler } from "./middleware/errorHandler.js";
 import { requestLogger, healthMetrics } from "./middleware/monitoring.js";
 import mongoSanitize from "express-mongo-sanitize";
 import cors from "cors";
 
+import { bootstrapServices } from "./services/bootstrap.js";
+import { serviceRegistry } from "./services/registry.js";
+
+import healthRoutes from "./routes/health.js";
+app.set("trust proxy", 1);
+app.use("/health", healthRoutes);
+
 dotenv.config();
 
 const app = express();
-const requiredDirs = ['public/uploads', 'logs', 'migrations', 'docs'];
-requiredDirs.forEach(dir => {
-    if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
-        console.log(`Created directory: ${dir}`);
-    }
+const PORT = process.env.PORT || 3000;
+
+// Ensure required directories exist
+const requiredDirs = ["public/uploads", "logs", "migrations", "docs"];
+requiredDirs.forEach((dir) => {
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+    console.log(`Created directory: ${dir}`);
+  }
 });
 
+// Trust proxy to get correct req.ip and apply rate limits behind proxies
+app.set("trust proxy", 1);
 
-// Trust proxy (important for rate limiting behind reverse proxy)
-app.set('trust proxy', 1);
-
-// Security middleware (FIRST!)
+// Security middleware
 app.use(helmetConfig);
 app.use(cors(corsConfig));
-app.use(mongoSanitize()); // Prevent NoSQL injection
-app.use(sanitizeInput); // XSS protection
+app.use(mongoSanitize());
+app.use(sanitizeInput);
 
 // Rate limiting
 app.use(generalLimiter);
@@ -40,61 +48,57 @@ app.use(generalLimiter);
 // Request monitoring
 app.use(requestLogger);
 app.use((req, res, next) => {
-    healthMetrics.incrementRequests();
-    next();
+  healthMetrics.incrementRequests();
+  next();
 });
 
-// Connect to DB with security options
-mongoose.connect(process.env.MONGO_URI, {
+// DB connection
+mongoose
+  .connect(process.env.MONGO_URI, {
     maxPoolSize: 10,
     serverSelectionTimeoutMS: 5000,
     socketTimeoutMS: 45000,
-}).then(() => console.log("MongoDB connected securely"))
-  .catch(err => {
+  })
+  .then(() => console.log("MongoDB connected securely"))
+  .catch((err) => {
     console.error("MongoDB connection failed:", err);
     process.exit(1);
   });
 
-// Enhanced session config
-app.use(session({
-    secret: (process.env.SESSION_SECRET?.split(',') || ['fallback-secret'])[0],
+// Sessions
+app.use(
+  session({
+    secret: (process.env.SESSION_SECRET?.split(",") || ["fallback-secret"])[0],
     resave: false,
     saveUninitialized: false,
     store: MongoStore.create({
-        mongoUrl: process.env.MONGO_URI,
-        touchAfter: 24 * 3600,
-        crypto: { secret: process.env.SESSION_SECRET }
+      mongoUrl: process.env.MONGO_URI,
+      touchAfter: 24 * 3600,
+      crypto: { secret: process.env.SESSION_SECRET },
     }),
     cookie: {
-        secure: process.env.NODE_ENV === 'production',
-        httpOnly: true,
-        maxAge: 24 * 60 * 60 * 1000,
-        sameSite: 'strict'
-    }
-}));
+      secure: process.env.NODE_ENV === "production",
+      httpOnly: true,
+      maxAge: 24 * 60 * 60 * 1000,
+      sameSite: "strict",
+    },
+  })
+);
 
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
-app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: "10mb" }));
+app.use(express.json({ limit: "10mb" }));
 app.use(express.static(path.resolve("public")));
-app.set('view engine', 'ejs');
+app.set("view engine", "ejs");
 
-// ===== IMPORT ALL ROUTES =====
-
-// Auth routes
+// ===== ROUTES IMPORTS (same as before) =====
 import authLoginRoutes from "./routes/auth/login.js";
 import authRegisterRoutes from "./routes/auth/register.js";
 import authPasswordResetRoutes from "./routes/auth/password-reset.js";
-
-// Public routes
 import publicRoutes from "./routes/public/main.js";
-
-// API routes
 import mobileApiRoutes from "./routes/api/pages.js";
 import apiTenantsRoutes from "./routes/api/tenants.js";
 import apiTranslateRoutes from "./routes/api/translate.js";
 import apiAuthRoutes from "./routes/api/auth.js";
-
-// Admin routes
 import adminGenerateRoutes from "./routes/admin/generate.js";
 import adminPushManagerRoutes from "./routes/admin/push-manager.js";
 import adminAbtestsRoutes from "./routes/admin/abtests.js";
@@ -104,61 +108,45 @@ import adminSettingsRoutes from "./routes/admin/settings.js";
 import adminUsersRoutes from "./routes/admin/users.js";
 import adminDashboardRoutes from "./routes/admin/dashboard.js";
 import adminDatabaseRoutes from "./routes/admin/database.js";
-
-// Tenant routes
 import tenantDashboardRoutes from "./routes/tenant/dashboard.js";
 import tenantThemeRoutes from "./routes/tenant/theme.js";
 import tenantUsageRoutes from "./routes/tenant/usage.js";
-
-// Billing routes
 import billingSubscriptionRoutes from "./routes/billing/subscription.js";
 import billingWebhooksRoutes from "./routes/billing/webhooks.js";
 import billingInvoicesRoutes from "./routes/billing/invoices.js";
 
-import { serviceRegistry } from "./services/registry.js";
-import aiService from "./services/ai.js";
-import billingService from "./services/billing.js";
-import massGeneratorService from "./services/massGenerator.js";
-
-// ===== MIDDLEWARE FOR USER LOADING =====
-// Load user into req.user if session exists
+// Load user to req.user from session if present
 app.use(async (req, res, next) => {
-    if (req.session.userId) {
-        try {
-            const User = (await import("./models/User.js")).default;
-            req.user = await User.findById(req.session.userId).populate('planId');
-        } catch (error) {
-            console.error('Error loading user:', error);
-            req.session.destroy();
-        }
+  if (req.session.userId) {
+    try {
+      const User = (await import("./models/User.js")).default;
+      req.user = await User.findById(req.session.userId).populate("planId");
+    } catch (error) {
+      console.error("Error loading user:", error);
+      req.session.destroy();
     }
-    next();
+  }
+  next();
 });
 
-// ===== MOUNT ROUTES =====
-
-// Auth routes (no prefix)
-app.use("/auth", authLimiter); // Apply auth rate limiting
+// Mount routes
+app.use("/auth", authLimiter);
 app.use("/auth", authLoginRoutes);
 app.use("/auth", authRegisterRoutes);
 app.use("/auth", authPasswordResetRoutes);
 
-// Public routes
 app.use("/", publicRoutes);
 
-// API routes with versioning
 app.use("/api/v1", mobileApiRoutes);
 app.use("/api/v1", apiTenantsRoutes);
 app.use("/api/v1", apiTranslateRoutes);
 app.use("/api/v1", apiAuthRoutes);
 
-// Backward compatibility (keep old /api routes)
 app.use("/api", mobileApiRoutes);
 app.use("/api", apiTenantsRoutes);
 app.use("/api", apiTranslateRoutes);
 app.use("/api", apiAuthRoutes);
 
-// Admin routes (require authentication)
 app.use("/admin", adminDashboardRoutes);
 app.use("/admin", adminGenerateRoutes);
 app.use("/admin", adminPushManagerRoutes);
@@ -169,92 +157,145 @@ app.use("/admin", adminSettingsRoutes);
 app.use("/admin", adminUsersRoutes);
 app.use("/admin", adminDatabaseRoutes);
 
-// Tenant routes (require authentication)
 app.use("/tenant", tenantDashboardRoutes);
 app.use("/tenant", tenantThemeRoutes);
 app.use("/tenant", tenantUsageRoutes);
 
-// Billing routes (require authentication except webhooks)
 app.use("/billing", billingSubscriptionRoutes);
-app.use("/billing/webhooks", billingWebhooksRoutes); // Webhooks don't need auth
+app.use("/billing/webhooks", billingWebhooksRoutes);
 app.use("/billing", billingInvoicesRoutes);
 
-// Register services with dependencies BEFORE starting server
-async function initializeServices() {
-    try {
-        // Register all services
-        serviceRegistry.register('logger', null, []); // Base service
-        serviceRegistry.register('ai', aiService, ['logger']);
-        serviceRegistry.register('billing', billingService, ['logger']);
-        serviceRegistry.register('massGenerator', massGeneratorService, ['ai', 'billing', 'logger']);
-        
-        // Initialize critical services
-        await serviceRegistry.initialize('ai');
-        await serviceRegistry.initialize('billing');
-        
-        logger.info('Critical services initialized successfully');
-        
-    } catch (error) {
-        logger.error('Service initialization failed', { error: error.message });
-        process.exit(1);
-    }
+// ===== HEALTH ENDPOINTS =====
+
+// Lightweight app health
+app.get("/health", (req, res) => {
+  res.json({
+    status: "ok",
+    ...healthMetrics.getMetrics(),
+  });
+});
+
+// Active health-check cache and IP policy
+const HEALTH_CACHE_TTL = (() => {
+  const raw = Number(process.env.HEALTH_CHECK_CACHE_SECONDS || 20);
+  const val = Number.isFinite(raw) ? raw : 20;
+  return Math.min(30, Math.max(10, val));
+})();
+const servicesHealthCache = { data: null, expiresAt: 0, inFlight: null };
+const parseList = (v) => (v || "").split(",").map((s) => s.trim()).filter(Boolean);
+const HEALTH_ALLOWLIST = parseList(process.env.HEALTH_IP_ALLOWLIST);
+const HEALTH_DENYLIST = parseList(process.env.HEALTH_IP_DENYLIST);
+
+function isIpBlocked(ip) {
+  if (HEALTH_DENYLIST.length && HEALTH_DENYLIST.includes(ip)) return true;
+  if (HEALTH_ALLOWLIST.length && !HEALTH_ALLOWLIST.includes(ip)) return true;
+  return false;
 }
 
-// Initialize services before starting server
-initializeServices().then(() => {
-    app.listen(PORT, () => {
-        console.log(`Server running securely on port ${PORT}`);
-        console.log('Services status:', serviceRegistry.getStatus());
-    });
-});
+/**
+ * Aggregated services health:
+ * - Default: passive registry status (no active checks)
+ * - Active checks: add ?active=true (runs healthCheck() with timeouts) and caches result for 10–30 seconds
+ * Security:
+ * - Closed by default unless HEALTH_PUBLIC=true
+ * - If closed, requires authenticated admin user
+ * - IP allow/deny lists supported via env
+ */
+app.get("/health/services", async (req, res) => {
+  if (isIpBlocked(req.ip)) {
+    return res.status(403).json({ error: "Forbidden by IP policy" });
+  }
 
-// Enhanced health check
-app.get('/health', (req, res) => {
-    res.json({
-        status: "ok",
-        ...healthMetrics.getMetrics()
-    });
-});
+  const isPublic = String(process.env.HEALTH_PUBLIC || "false").toLowerCase() === "true";
+  if (!isPublic) {
+    const isAdmin = Boolean(req.user && (req.user.role === "admin" || req.user.isAdmin));
+    if (!isAdmin) return res.status(403).json({ error: "Forbidden" });
+  }
 
-// Root redirect
-app.get('/', (req, res) => {
-    if (req.user) {
-        const redirectUrl = req.user.role === 'admin' ? '/admin' : '/tenant';
-        return res.redirect(redirectUrl);
+  const active = String(req.query.active || "false").toLowerCase() === "true";
+
+  try {
+    const base = serviceRegistry.getStatus();
+    if (!active) {
+      return res.json({ mode: "passive", ...base });
     }
-    res.redirect('/auth/login');
+
+    const now = Date.now();
+    if (servicesHealthCache.data && servicesHealthCache.expiresAt > now) {
+      return res.json(servicesHealthCache.data);
+    }
+
+    if (!servicesHealthCache.inFlight) {
+      servicesHealthCache.inFlight = (async () => {
+        const checks = await serviceRegistry.runHealthChecks({
+          timeoutMs: Number(process.env.HEALTH_CHECK_TIMEOUT_MS || 2000),
+          parallel: true,
+        });
+
+        const activeMap = new Map(checks.checks.map((c) => [c.name, c]));
+        const services = base.services.map((s) => ({ ...s, health: activeMap.get(s.name) || null }));
+
+        const payload = {
+          mode: "active",
+          timestamp: checks.timestamp,
+          ttlSeconds: HEALTH_CACHE_TTL,
+          services,
+        };
+
+        servicesHealthCache.data = payload;
+        servicesHealthCache.expiresAt = now + HEALTH_CACHE_TTL * 1000;
+        return payload;
+      })().finally(() => {
+        setTimeout(() => {
+          servicesHealthCache.inFlight = null;
+        }, 0);
+      });
+    }
+
+    const result = await servicesHealthCache.inFlight;
+    return res.json(result);
+  } catch (error) {
+    return res.status(500).json({ error: "Health check failed", details: error.message });
+  }
 });
 
-// 404 handler
+// 404 and error handlers
 app.use(notFoundHandler);
-
-// Global error handler (LAST!)
 app.use(globalErrorHandler);
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-    console.log(`Server running securely on port ${PORT}`);
-    console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-    
-    // Seed database on first run
-    if (process.env.NODE_ENV !== 'production') {
-        import('./services/seed.js').then(({ seedDatabase }) => {
-            seedDatabase().catch(console.error);
+// ===== START SERVER AFTER BOOTSTRAP =====
+async function start() {
+  try {
+    await bootstrapServices();
+
+    app.listen(PORT, () => {
+      console.log(`Server running securely on port ${PORT}`);
+      console.log(`Environment: ${process.env.NODE_ENV || "development"}`);
+
+      if (process.env.NODE_ENV !== "production") {
+        import("./services/seed.js").then(({ seedDatabase }) => {
+          seedDatabase().catch(console.error);
         });
-    }
-});
+      }
+    });
+  } catch (error) {
+    console.error("Failed to bootstrap services:", error);
+    process.exit(1);
+  }
+}
+
+start();
 
 // Graceful shutdown
-process.on('SIGTERM', () => {
-    console.log('SIGTERM received. Shutting down gracefully...');
-    mongoose.connection.close();
-    process.exit(0);
+process.on("SIGTERM", () => {
+  console.log("SIGTERM received. Shutting down gracefully...");
+  mongoose.connection.close();
+  process.exit(0);
 });
 
-process.on('SIGINT', async () => {
-    console.log('SIGINT received. Shutting down gracefully...');
-    await serviceRegistry.shutdown();
-    mongoose.connection.close();
-    process.exit(0);
+process.on("SIGINT", async () => {
+  console.log("SIGINT received. Shutting down gracefully...");
+  await serviceRegistry.shutdown();
+  mongoose.connection.close();
+  process.exit(0);
 });
-
